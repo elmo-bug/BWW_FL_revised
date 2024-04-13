@@ -62,12 +62,10 @@ if __name__=="__main__":
             rep_set=req_set.rep
             req_set.reset_for_ALG()
             flag=False
-        else:
-            v_max=max(rep_set)
-            if not(v_max==1):
-                for i in range(len(rep_set)):
-                    rep_set[i] /=v_max
-            req_set.rep=rep_set
+        v_max=max(rep_set)
+        for i in range(len(rep_set)):
+            rep_set[i] /=v_max
+        req_set.rep=rep_set
         print(rep_set)
         for mod in mode:
             print(mod,end='\n\n') 
@@ -190,12 +188,10 @@ if __name__=="__main__":
             rep_set=req_set.rep
             req_set.reset_for_ALG()
             flag=False    
-        else:
-            v_max=max(rep_set)
-            if not(v_max==1):
-                for i in range(len(rep_set)):
-                    rep_set[i] /=v_max
-            req_set.rep=rep_set
+        v_max=max(rep_set)
+        for i in range(len(rep_set)):
+            rep_set[i] /=v_max
+        req_set.rep=rep_set
         for mod in mode:
             print(mod,end='\n\n') 
             for i in range(10):
