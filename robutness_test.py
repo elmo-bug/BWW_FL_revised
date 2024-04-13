@@ -63,8 +63,6 @@ if __name__=="__main__":
             req_set.reset_for_ALG()
             flag=False
         v_max=max(rep_set)
-        for i in range(len(rep_set)):
-            rep_set[i] /=v_max
         req_set.rep=rep_set
         print(rep_set)
         for mod in mode:
@@ -84,7 +82,7 @@ if __name__=="__main__":
                 final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/len(rep_per_round[k]))
         for k,v in ac.items():
             if len(v):
-                middle_data[k]=[(x,y) for x,y in zip(ac[k],rep_per_round[k])]          
+                middle_data[k]=[(x,y/v_max) for x,y in zip(ac[k],rep_per_round[k])]          
         groups[len(x)]=(final_data)
         print(f'groups { groups[len(x)]}')   
         print(f'middle data{middle_data}')    
@@ -189,8 +187,6 @@ if __name__=="__main__":
             req_set.reset_for_ALG()
             flag=False    
         v_max=max(rep_set)
-        for i in range(len(rep_set)):
-            rep_set[i] /=v_max
         req_set.rep=rep_set
         for mod in mode:
             print(mod,end='\n\n') 
@@ -209,7 +205,7 @@ if __name__=="__main__":
                 final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/len(rep_per_round[k]))
         for k,v in ac.items():
             if len(v):
-                middle_data[k]=[(x,y) for x,y in zip(ac[k],rep_per_round[k])]          
+                middle_data[k]=[(x,y/v_max) for x,y in zip(ac[k],rep_per_round[k])]          
         groups[len(num_per_type[index])]=(final_data)
         print(f'num_workers { groups[len(num_per_type[index])]}')   
         print(f'middle data{middle_data}')    
