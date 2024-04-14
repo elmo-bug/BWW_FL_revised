@@ -1233,7 +1233,8 @@ class Worker:
         self.updates=[[] for i in range(self.num_requesters)]
         
     def rounds_stay(self,requester):
-        self.updates[requester.ID].pop()
+        if len(self.updates[requester.ID]):
+            self.updates[requester.ID].pop()
         
     def generate_bid(self):
         self.bid=random.uniform(self.range_of_bid["low"],self.range_of_bid["high"])

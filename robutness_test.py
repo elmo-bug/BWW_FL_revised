@@ -79,7 +79,7 @@ if __name__=="__main__":
         middle_data={}
         for k,v in ac.items():
             if len(v):
-                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/len(rep_per_round[k]))
+                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/(len(rep_per_round[k])*v_max))
         for k,v in ac.items():
             if len(v):
                 middle_data[k]=[(x,y/v_max) for x,y in zip(ac[k],rep_per_round[k])]          
@@ -111,6 +111,7 @@ if __name__=="__main__":
         req_set=Request_Set(workers=workers,requesters=requester,num_per_type=num_per_type,budget=budget_all)
         #the reputation evaluationset fix across all divison of group
         req_set.rep=rep_set
+        v_max=max(rep_set)
         for mod in mode:
             print(mod,end='\n\n') 
             for i in range(10):
@@ -123,7 +124,7 @@ if __name__=="__main__":
         final_data={}
         for k,v in ac.items():
             if len(v):
-                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/len(rep_per_round[k])) 
+                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/(len(rep_per_round[k])*v_max)) 
         reqs[len(x)]=(final_data)
         print(f'reqs { reqs[len(x)]}')     
         print(reqs)    
@@ -134,7 +135,7 @@ if __name__=="__main__":
         middle_data={}
         for k,v in ac.items():
             if(len(v)):
-                middle_data[k]=[(x,y) for x,y in zip(ac[k],rep_per_round[k])]
+                middle_data[k]=[(x,y/v_max) for x,y in zip(ac[k],rep_per_round[k])]
         df=pd.DataFrame.from_dict(middle_data)
         #df.to_csv(f"fashion_greedy_num_req_{len(x)}.csv")  
         # df.to_csv(f"greedy_num_req_{len(x)}.csv") 
@@ -202,7 +203,7 @@ if __name__=="__main__":
         middle_data={}
         for k,v in ac.items():
             if len(v):
-                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/len(rep_per_round[k]))
+                final_data[k]=(sum(v)/len(v),sum(rep_per_round[k])/(len(rep_per_round[k])*v_max))
         for k,v in ac.items():
             if len(v):
                 middle_data[k]=[(x,y/v_max) for x,y in zip(ac[k],rep_per_round[k])]          
