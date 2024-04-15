@@ -105,9 +105,9 @@ if __name__=="__main__":
         requester=[]
         for i in range(sum(num_per_type)):
             workers.append(Worker(input_size=input,hidden_size=hidden,output_size=output,accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=num_per_type,ID=i),\
-                range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size))
+                range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size,mode='CIFAR'))
         for i in range(req_size):
-            requester.append(Requester(ID=i,budget=x[i],workers=workers,num_per_type=num_per_type,num_requester=req_size,data=data[i],batch_size=batch_size))   
+            requester.append(Requester(ID=i,budget=x[i],workers=workers,num_per_type=num_per_type,num_requester=req_size,data=data[i],batch_size=batch_size,mode='CIFAR'))   
         req_set=Request_Set(workers=workers,requesters=requester,num_per_type=num_per_type,budget=budget_all)
         #the reputation evaluationset fix across all divison of group
         req_set.rep=rep_set
@@ -176,9 +176,9 @@ if __name__=="__main__":
         requester=[]
         for i in range(sum(num_per_type[index])):
             workers.append(Worker(input_size=input,hidden_size=hidden,output_size=output,accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=num_per_type[index],ID=i),\
-                range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size))
+                range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size,,mode='CIFAR'))
         for i in range(req_size):
-            requester.append(Requester(ID=i,budget=budget_each[index][i],workers=workers,num_per_type=num_per_type[index],num_requester=req_size,data=data[i],batch_size=batch_size))   
+            requester.append(Requester(ID=i,budget=budget_each[index][i],workers=workers,num_per_type=num_per_type[index],num_requester=req_size,data=data[i],batch_size=batch_size,mode='CIFAR'))   
         req_set=Request_Set(workers=workers,requesters=requester,num_per_type=num_per_type[index],budget=budget_all)
         #the reputation evaluationset fix across all divison of group
         if flag:
