@@ -467,13 +467,16 @@ class Request_Set:
             requester.restart()            
 ###
 #integrate the selction of participants in global model for convenience since the global can operate the local        
-    def run(self,mode="get_rep",size_of_selection=10):
+    def run(self,mode="get_rep",size_of_selection=10,coldstart=False):
         #m requester, n workers, l groups
         m=len(self.requesters)
         n=sum(self.num_per_type)
         l=len(self.num_per_type)
         sum_rep=0
         len_rep=0
+        #avoid all zeros in first round
+        if min(self.rep)==0:
+            self.rep=[1 for i in range(n)] 
         #budget more first
         if mode=='greedy_g':
             for requester in self.requesters:
@@ -623,7 +626,8 @@ class Request_Set:
             v_max=max(self.rep)
             # print(f'v_min {v_min} v_max {v_max}')
             #the division num in alg2 line2
-            gamma=math.ceil(np.log10(v_max/v_min))
+            gamma=math.ceil(np.log10(v_max/v_min)) 
+            gamma=max(gamma,1)
             groups=[[]for i in range(gamma)]
             for i in range(n):
                 self.rep[i] /=v_min
@@ -713,7 +717,10 @@ class Request_Set:
                                     pos[i][j]=1
                         possible_pay.append({'pay':r,'pay_flag':pos,'bid_set':bid_sub,'s_r':s_r,'type':'(\u03B1+1)/(2\u03B1+1)'})  
             #alg 2 line 6
-            payscheme=random.choice(possible_pay[1:])
+            if len(possible_pay)-1:
+                payscheme=random.choice(possible_pay[1:])
+            else:
+                payscheme=random.choice(possible_pay)
             for requester in self.requesters:
                 requester.init()     
             for i in range(payscheme['s_r']):
@@ -837,13 +844,15 @@ class Request_Set:
             each_pay=[0 for i in range(m)]
             conf=[{} for i in range(m)]
             participants=[0 for i in range(n)]
+            self.rep=[rep/max(self.rep) for rep in self.rep]
             bid=[{'ID':i,"type":self.workers[i].type_ID,'bid':self.workers[i].bid,'q':self.workers[i].bid/self.rep[i],'rep':self.rep[i]} for i in range(n)]
             bid=sorted(bid,key=lambda x:x['q'])
             rep_sum=0
             q=0
+            min_budget=min([requester.budget for requester in self.requesters])
             for i in range(n-1):
                 rep_sum +=bid[i]['bid']/bid[i]['q']
-                if rep_sum*bid[i+1]['q']<=self.budget:
+                if rep_sum*bid[i+1]['q']<=self.budget and bid[0]['rep']*bid[i+1]['q']<=min_budget:
                     participants[bid[i]['ID']]=1
                 else:
                     q=bid[i]['q']
@@ -853,16 +862,16 @@ class Request_Set:
             sum_pay=0
             for i in range(n):
                 requester=random.randint(0,m-1)
-                if participants[bid[i]['ID']] and not(bid[i]['type'] in conf[requester]) and each_pay[requester]+bid[i]['q']*q<=self.requesters[requester].budget:
+                if participants[bid[i]['ID']] and not(bid[i]['type'] in conf[requester]) and each_pay[requester]+bid[i]['rep']*q<=self.requesters[requester].budget:
                     sum_rep+=self.rep[bid[i]['ID']]
                     len_rep+=1
                     self.requesters[requester].participants[bid[i]['ID']]=1
                     conf[requester][bid[i]['type']]=bid[i]['type']
                     print(f"requester {requester}, worker:{bid[i]['ID']},accuracy{self.workers[bid[i]['ID']].accuracy},type:{self.workers[bid[i]['ID']].type_ID},rep:{self.rep[bid[i]['ID']]}")
                     sum_pay += bid[i]['rep']*q
-                    each_pay[requester] +=   bid[i]['q']*q 
+                    each_pay[requester] +=   bid[i]['rep']*q 
                 #conflict or not enough budget break  
-                elif participants[bid[i]['ID']]:
+                elif participants[bid[i]['ID']] and len_rep:
                     break
             for j in range(m):
                 print(f"pay_wokrer{j}:{each_pay[j]}",end=" ") 
@@ -901,17 +910,55 @@ class Request_Set:
                         print("")
                 print("")
                 
-        else:
+        elif  coldstart==True:
             self.accuracy[mode].append(0)
-            for i in range(5):
+            self.cal_modified_pagerank()
+            #( step 2 generate bid)
+            #renew bid 
+            for worker in self.workers:
+                worker.generate_bid()
+            # print(self.requesters[0].rounds)
+            for requester in self.requesters:
+                requester.cal_rep(set_req=self)
+                for x in range(len(requester.participants)):
+                    if  requester.participants[x]==1:
+                    #record the interaction(Interact means one direction?)
+                        requester.eval_models[x].interaction=1
+            for i in range(2):
                 print(f"rep_sum:{sum_rep} len_of_rep{len_rep} avg{sum_rep/len_rep}")
                 for requester in self.requesters:
                     ans=requester.aggregate(mode=mode)
-                    if i==4:
+                    if i==1:
                         self.accuracy[mode][-1] += ans[0]        
                         print(f"requester:{requester.ID},result of global_accuracy & loss:{ans}")
             self.accuracy[mode][-1] /=m
-            self.rep_per_round[mode].append(sum_rep)              
+            self.rep_per_round[mode].append(sum_rep/max(self.rep))     
+            self.rep=[0 for i in range(n)]  
+            for i in range(n):
+                for req in self.requesters:
+                    self.rep[i] += req.eval_models[i].comprehensive_reputation
+                self.rep[i] /= m
+            output=[{"ID":i,"rep":self.rep[i],"accuracy":self.workers[i].accuracy,"success":np.average(self.workers[i].success),"fail":np.average(self.workers[i].fail) }for i in range(n)]
+            output=sorted(output,key=lambda x:x['rep'])
+            if self.requesters[0].rounds and self.requesters[0].rounds%10==0:
+                for i in range(n):
+                    print(output[i],end='  ')
+                    if (i+1)%3==0:
+                        print("")
+                print("")  
+                      
+        else:
+            self.accuracy[mode].append(0)
+            for i in range(2):
+                print(f"rep_sum:{sum_rep} len_of_rep{len_rep} avg{sum_rep/len_rep}")
+                for requester in self.requesters:
+                    ans=requester.aggregate(mode=mode)
+                    if i==1:
+                        self.accuracy[mode][-1] += ans[0]        
+                        print(f"requester:{requester.ID},result of global_accuracy & loss:{ans}")
+            self.accuracy[mode][-1] /=m
+            self.rep_per_round[mode].append(sum_rep/max(self.rep))  
+                       
                             
         
 class eval_worker:
@@ -973,6 +1020,7 @@ class Requester:
         self.local_updates[ID]=np.array(self.workers[ID].updates[self.ID][-1])
     
     def restart(self):
+        self.rounds=0
         self.params.append(self.init_param)
         for worker in self.workers:
             worker.restart()
