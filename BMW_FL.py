@@ -1279,6 +1279,15 @@ class Worker:
         
     def restart(self):
         self.updates=[[] for i in range(self.num_requesters)]
+        self.success=[0 for i in range(self.num_requesters)]
+        self.fail=[0 for i in range(self.num_requesters)] 
+        self.models=[]
+        if self.mode=="MNIST":
+            for i in range(self.num_requesters):
+                self.models.append(SimpleNN_MNIST(input_size=self.input_size,hidden_size=self.hidden_size,output_size=self.output_size).cuda())
+        else:
+            for i in range(self.num_requesters):
+                self.models.append(CNN_CIFAR10())
         
     def rounds_stay(self,requester):
         if len(self.updates[requester.ID]):
