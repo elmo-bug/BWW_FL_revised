@@ -54,26 +54,28 @@ if __name__=="__main__":
         for i in range(req_size):
             requester.append(   Requester(ID=i,budget=budget_each[i],workers=workers,num_per_type=x,num_requester=req_size,data=data[i],batch_size=batch_size,mode='MNIST')  )   
         req_set=Request_Set(workers=workers,requesters=requester,num_per_type=x,budget=budget_all)
+        req_test_set=copy.deepcopy(req_set)
         #the reputation evaluationset fix across all divison of group
         # if flag:
         #     for i in range(10):
         #         req_set.run(mode='get_rep',size_of_selection=(int)(sum(x)/10))
         #     rep_set=req_set.rep
-        #     req_set.reset_for_ALG()
         #     flag=False
-        # req_set.rep=rep_set
-        # print(rep_set)
-        for mod in mode:
-            print(mod,end='\n\n') 
-            for i in range(10):
+        # req_test_set.rep=rep_set
+        # print(rep_set)    
+        for i in range(10):
+            #for cold start
+            req_set.run(mode='get_rep',size_of_selection=(int)(sum(x)/10))
+            req_test_set.rep=req_set.rep 
+            for mod in mode:
+                print(mod,end='\n\n')
                 print(f'round{i}')
-                req_set.run(mode=mod,coldstart=True)
-            #when coldstart the train proceess should be continous rather than discrete
-            req_set.reset_for_ALG()
+                req_test_set.run(mode=mod)
+                req_test_set.reset_for_ALG()
        
         #get avg accuracy for all rounds 
-        ac=req_set.accuracy
-        rep_per_round=req_set.rep_per_round
+        ac=req_test_set.accuracy
+        rep_per_round=req_test_set.rep_per_round
         final_data={}
         middle_data={}
         for k,v in ac.items():
@@ -108,27 +110,29 @@ if __name__=="__main__":
         for i in range(req_size):
             requester.append(Requester(ID=i,budget=x[i],workers=workers,num_per_type=num_per_type,num_requester=req_size,data=data[i],batch_size=batch_size,mode='MNIST'))   
         req_set=Request_Set(workers=workers,requesters=requester,num_per_type=num_per_type,budget=budget_all)
-        #the reputation evaluationset fix across all divison of group
+        req_set.reset_for_ALG()
+        req_test_set=copy.deepcopy(req_set)
+        #the reputation evaluationset fix across all num of requester
         #if flag:
         #     for i in range(10):
         #         req_set.run(mode='get_rep',size_of_selection=(int)(sum(x)/10))
         #     rep_set=req_set.rep
-        #     req_set.reset_for_ALG()
         #     flag=False
-        # req_set.rep=rep_set
+        # req_test_set.rep=rep_set
         # print(rep_set)
         #req_set.rep=rep_set
-        req_set.reset_for_ALG()
-        for mod in mode:
-            print(mod,end='\n\n') 
-            for i in range(10):
+        for i in range(10):
+            #for cold start
+            req_set.run(mode='get_rep',size_of_selection=(int)(sum(x)/10))
+            req_test_set.rep=req_set.rep 
+            for mod in mode:
+                print(mod,end='\n\n')
                 print(f'round{i}')
-                req_set.run(mode=mod,coldstart=True)
-            #when coldstart the train proceess should be continous rather than discrete
-            req_set.reset_for_ALG()
+                req_test_set.run(mode=mod)
+                req_test_set.reset_for_ALG()
         #get avg accuracy for all rounds
-        ac=req_set.accuracy
-        rep_per_round=req_set.rep_per_round
+        ac=req_test_set.accuracy
+        rep_per_round=req_test_set.rep_per_round
         final_data={}
         for k,v in ac.items():
             if len(v):
@@ -190,7 +194,7 @@ if __name__=="__main__":
     #         for i in range(10):
     #             req_set.run(mode='get_rep',size_of_selection=(int)(sum(num_per_type[index])/10))
     #         rep_set=req_set.rep
-    #         req_set.reset_for_ALG()
+    #         req_set.reset_for_ALG(i)
     #         flag=False    
     #     req_set.rep=rep_set
     #     for mod in mode:
@@ -198,7 +202,7 @@ if __name__=="__main__":
     #         for i in range(10):
     #             print(f'round{i}')
     #             req_set.run(mode=mod)
-    #             req_set.reset_for_ALG()
+    #             req_set.reset_for_ALG(i)
     
     #     #get avg accuracy for all rounds 
     #     ac=req_set.accuracy

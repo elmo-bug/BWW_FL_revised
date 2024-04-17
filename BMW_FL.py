@@ -467,7 +467,7 @@ class Request_Set:
             requester.restart()            
 ###
 #integrate the selction of participants in global model for convenience since the global can operate the local        
-    def run(self,mode="get_rep",size_of_selection=10,coldstart=False):
+    def run(self,mode="get_rep",size_of_selection=10):
         #m requester, n workers, l groups
         m=len(self.requesters)
         n=sum(self.num_per_type)
@@ -910,43 +910,6 @@ class Request_Set:
                         print("")
                 print("")
                 
-        elif  coldstart==True:
-            self.accuracy[mode].append(0)
-            self.cal_modified_pagerank()
-            #( step 2 generate bid)
-            #renew bid 
-            for worker in self.workers:
-                worker.generate_bid()
-            # print(self.requesters[0].rounds)
-            for requester in self.requesters:
-                requester.cal_rep(set_req=self)
-                for x in range(len(requester.participants)):
-                    if  requester.participants[x]==1:
-                    #record the interaction(Interact means one direction?)
-                        requester.eval_models[x].interaction=1
-            for i in range(2):
-                print(f"rep_sum:{sum_rep} len_of_rep{len_rep} avg{sum_rep/len_rep}")
-                for requester in self.requesters:
-                    ans=requester.aggregate(mode=mode)
-                    if i==1:
-                        self.accuracy[mode][-1] += ans[0]        
-                        print(f"requester:{requester.ID},result of global_accuracy & loss:{ans}")
-            self.accuracy[mode][-1] /=m
-            self.rep_per_round[mode].append(sum_rep/max(self.rep))     
-            self.rep=[0 for i in range(n)]  
-            for i in range(n):
-                for req in self.requesters:
-                    self.rep[i] += req.eval_models[i].comprehensive_reputation
-                self.rep[i] /= m
-            output=[{"ID":i,"rep":self.rep[i],"accuracy":self.workers[i].accuracy,"success":np.average(self.workers[i].success),"fail":np.average(self.workers[i].fail) }for i in range(n)]
-            output=sorted(output,key=lambda x:x['rep'])
-            if self.requesters[0].rounds and self.requesters[0].rounds%10==0:
-                for i in range(n):
-                    print(output[i],end='  ')
-                    if (i+1)%3==0:
-                        print("")
-                print("")  
-                      
         else:
             self.accuracy[mode].append(0)
             for i in range(2):
@@ -1259,6 +1222,7 @@ class Worker:
         else:
             for i in range(num_requesters):
                 self.models.append(CNN_CIFAR10())
+        self.mode=mode
         self.accuracy=accuracy
         self.batch_size=batch_size
         self.train_test_acu=change_labels(data['train'],percentage=1-accuracy)
