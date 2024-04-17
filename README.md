@@ -23,3 +23,5 @@ Python 3.7.0
 
 3.Add new Data of CIFAR 10 to test
 
+4.Add test function for coldstart
+
