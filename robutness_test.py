@@ -18,11 +18,6 @@ if __name__=="__main__":
     test_size=2000
     val_size=2000
     batch_size=100
-    #strutral for simple_nn in MNIST
-    input=28*28
-    hidden=100
-    output=10
-    
     # epochs=10
     epochs=1
     ##note that the cifar need smaller learning rate to train a good model
@@ -54,7 +49,7 @@ if __name__=="__main__":
         workers=[]
         requester=[]
         for i in range(sum(x)):
-            workers.append( Worker(input_size=input,hidden_size=hidden,output_size=output,accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=x,ID=i),\
+            workers.append( Worker(accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=x,ID=i),\
                 range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size,epochs=epochs,mode='MNIST') )
         for i in range(req_size):
             requester.append(   Requester(ID=i,budget=budget_each[i],workers=workers,num_per_type=x,num_requester=req_size,data=data[i],batch_size=batch_size,mode='MNIST')  )   
@@ -168,9 +163,6 @@ if __name__=="__main__":
     #     test_size=2000
     #     val_size=2000
     #     batch_size=100
-    #     input=28*28
-    #     hidden=100
-    #     output=10
     #     epochs=5
     #     learning_rate=0.005
     #     accuracy=[]
@@ -188,7 +180,7 @@ if __name__=="__main__":
     #     workers=[]
     #     requester=[]
     #     for i in range(sum(num_per_type[index])):
-    #         workers.append(Worker(input_size=input,hidden_size=hidden,output_size=output,accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=num_per_type[index],ID=i),\
+    #         workers.append(Worker(accuracy=accuracy[i],data=data[i],ID=i,type_ID=get_type(num_per_type=num_per_type[index],ID=i),\
     #             range_of_bid={"high":high[i],"low":low[i]},batch_size=batch_size,num_requesters=req_size,mode='MNIST'))
     #     for i in range(req_size):
     #         requester.append(Requester(ID=i,budget=budget_each[index][i],workers=workers,num_per_type=num_per_type[index],num_requester=req_size,data=data[i],batch_size=batch_size,mode='MNIST'))   

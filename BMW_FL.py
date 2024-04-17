@@ -185,7 +185,7 @@ def test_accuracy(old_dataset,new_dataset):
 ##MNIST
 
 class SimpleNN_MNIST(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size=28*28, hidden_size=100, output_size=10):
         super(SimpleNN_MNIST, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
@@ -249,7 +249,7 @@ class SimpleNN_MNIST(nn.Module):
 
 ##
 class CNN_MNIST(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size=28*28, hidden_size=100, output_size=10):
         super(CNN_MNIST, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
@@ -977,8 +977,8 @@ class eval_worker:
 
 class Requester:
     def __init__(self,ID,budget,workers,num_per_type,num_requester,data,Lambda=0.2,beta1=0.5,beta2=4,delta_threshold=-0.01,omega=0.4,ksi=0.5,batch_size=100,mode="MNIST"):
-        if mode=="MNIST":
-            self.global_model=SimpleNN_MNIST(input_size=workers[0].input_size,hidden_size=workers[0].hidden_size,output_size=workers[0].output_size).cuda()  
+        if mode=="MNIST" or mode=="FASHIONMNIST":
+            self.global_model=SimpleNN_MNIST().cuda()  
         else:
             self.global_model=CNN_CIFAR10() 
         self.init_param=flatten_parameters(self.global_model)
@@ -1242,23 +1242,20 @@ class Requester:
     #(formula 11)
     def cal_comprehensive_reputation_all(self):
         for ev_mod in self.eval_models:
-            ev_mod.comprehensive_reputation=self.beta*ev_mod.direct_reputation+(1-self.beta)*ev_mod.indirect_reputation
+            ev_mod.comprehensive_reputation=self.beta*ev_mod.direct_reputation+(1-self.beta)*ev_mod.indirect_reputation           
 class Worker:
     #init
-    def __init__(self,input_size,hidden_size,output_size,accuracy,data,ID,type_ID,num_requesters,base_score=1,epochs=1,learning_rate=0.005,\
+    def __init__(self,accuracy,data,ID,type_ID,num_requesters,base_score=1,epochs=1,learning_rate=0.005,\
         range_of_bid={"low":4,"high":6},batch_size=100,mode="MNIST"):
         self.base_score=base_score
         self.epochs=epochs
         self.learning_rate=learning_rate
-        self.input_size=input_size
-        self.hidden_size=hidden_size
-        self.output_size=output_size
         self.num_requesters=num_requesters
         self.models=[]
         #keep on e model for a requester
-        if mode=="MNIST":
+        if mode=="MNIST" or mode=="FASHIONMNIST":
             for i in range(num_requesters):
-                self.models.append(SimpleNN_MNIST(input_size=input_size,hidden_size=hidden_size,output_size=output_size).cuda())
+                self.models.append(SimpleNN_MNIST().cuda())
         else:
             for i in range(num_requesters):
                 self.models.append(CNN_CIFAR10())
@@ -1282,9 +1279,9 @@ class Worker:
         self.success=[0 for i in range(self.num_requesters)]
         self.fail=[0 for i in range(self.num_requesters)] 
         self.models=[]
-        if self.mode=="MNIST":
+        if self.mode=="MNIST" or self.mode=="FASHIONMNIST":
             for i in range(self.num_requesters):
-                self.models.append(SimpleNN_MNIST(input_size=self.input_size,hidden_size=self.hidden_size,output_size=self.output_size).cuda())
+                self.models.append(SimpleNN_MNIST().cuda())
         else:
             for i in range(self.num_requesters):
                 self.models.append(CNN_CIFAR10())
