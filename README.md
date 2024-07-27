@@ -1,4 +1,5 @@
 ### Environment requirement
+
 Python 3.7.0
 
 1.Name: numpy **Version: 1.21.6**
@@ -13,15 +14,12 @@ Python 3.7.0
 
 6.Name: matplotlib **Version: 3.4.2**
 
-
-
 #### **Revise**
 
 1.Change the name of class for consistency with article
 
-2.Add new mode of random greedy with both overall budget and separate budget
+2.Add new Data of CIFAR 10 to test
 
-3.Add new Data of CIFAR 10 to test
+3.Add test function for coldstart
 
-4.Add test function for coldstart
-
+4.Add non_iid mode

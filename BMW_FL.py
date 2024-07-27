@@ -11,10 +11,7 @@ import copy
 from torchvision import datasets, transforms
 from torch.utils.data import random_split,Subset
 from functools import reduce
-import cvxpy as cp
 import gurobipy as gp
-import torchtext.legacy 
-from torchtext.datasets import IMDB
 from torchvision.datasets import CIFAR10
 '''
 
@@ -72,48 +69,108 @@ def cosine_similarity(vector1, vector2):
 
     return similarity 
 
-
+def split_by_label(dataset, num_classes=10):
+    data_by_label = [[] for _ in range(num_classes)]
+    for i in range(len(dataset)):
+        image, label = dataset[i]
+        data_by_label[label].append(i)
+    return data_by_label
 ##data pre-training operation
 
-def load_MNIST_data(num_individuals = 30,training_set_size = 1000,validation_set_size=2000,test_set_size=2000):
+def load_MNIST_data(num_individuals = 30,training_set_size = 1000,validation_set_size=2000,test_set_size=2000,non_IID=False):
     # Define the transformations
     transform = transforms.Compose([transforms.ToTensor()])
     # Load MNIST dataset
     mnist_train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
     mnist_test_dataset = MNIST(root='./data', train=False, transform=transform, download=True)
     total=validation_set_size+test_set_size
-    # Split datasets for each individual
-    mnist_individual_datasets = [torch.utils.data.Subset(mnist_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
-    mnist_individual_test_valid=[torch.utils.data.Subset(mnist_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
     dataset=[]
-    for i in range(len(mnist_individual_datasets)):
-        sub={}
-        sub["train"]=list(mnist_individual_datasets[i%(int)(len(mnist_train_dataset)/training_set_size)])
-        # sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size, test_set_size])
-        sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i%(int)((len(mnist_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
-        sub["validation"]=list(sub["validation"])
-        sub['test']=list(sub['test'])
-        dataset.append(sub)
+    if not(non_IID):
+        # Split datasets for each individual
+        mnist_individual_datasets = [torch.utils.data.Subset(mnist_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
+        mnist_individual_test_valid=[torch.utils.data.Subset(mnist_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
+        for i in range(len(mnist_individual_datasets)):
+            sub={}
+            sub["train"]=list(mnist_individual_datasets[i%(int)(len(mnist_train_dataset)/training_set_size)])
+            # sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size, test_set_size])
+            sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i%(int)((len(mnist_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)
+    else:
+        train_index_of_label=split_by_label(dataset=mnist_train_dataset)
+        validation_test_index_of_label=split_by_label(dataset=mnist_test_dataset)
+        mnist_individual_datasets = []
+        mnist_individual_test_valid=[]
+        for i in range(num_individuals):
+            #no necessary the same size of dataset
+            nums_of_type=random.randint(5,10)
+            if not(i):
+                nums_of_type=10
+            type=random.sample(range(0, 10), nums_of_type)
+            index_1=[ random.choices(train_index_of_label[i],k=(int)(training_set_size/nums_of_type)) for i in type]
+            #flatten
+            index_1=[item for ind in index_1 for item in ind]
+            mnist_individual_datasets.append(torch.utils.data.Subset(mnist_train_dataset,index_1))
+            index_2=[ random.choices(validation_test_index_of_label[i],k=(int)((validation_set_size+test_set_size)/nums_of_type))for i in type]
+            #flatten
+            index_2=[item for ind in index_2 for item in ind]
+            mnist_individual_test_valid.append(torch.utils.data.Subset(mnist_test_dataset,index_2))
+        for i in range(len(mnist_individual_datasets)):
+            sub={}
+            sub["train"]=mnist_individual_datasets[i]
+            sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size, len(mnist_individual_test_valid[i])-validation_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)    
+                    
     return dataset
 
-def load_Fashion(num_individuals = 30,training_set_size = 1000,validation_set_size=2000,test_set_size=2000):
+def load_Fashion(num_individuals = 30,training_set_size = 1000,validation_set_size=2000,test_set_size=2000,non_IID=False):
     transform = transforms.Compose([transforms.ToTensor()])
     # Load MNIST dataset
     mnist_train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
     mnist_test_dataset = datasets.FashionMNIST(root='./data', train=False, transform=transform, download=True)
     total=validation_set_size+test_set_size
-    # Split datasets for each individual
-    mnist_individual_datasets = [torch.utils.data.Subset(mnist_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
-    mnist_individual_test_valid=[torch.utils.data.Subset(mnist_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
     dataset=[]
-    for i in range(len(mnist_individual_datasets)):
-        sub={}
-        sub["train"]=list(mnist_individual_datasets[i%(int)(len(mnist_train_dataset)/training_set_size)])
-        # sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size, test_set_size])
-        sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i%(int)((len(mnist_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
-        sub["validation"]=list(sub["validation"])
-        sub['test']=list(sub['test'])
-        dataset.append(sub)
+    if not(non_IID):
+        # Split datasets for each individual
+        mnist_individual_datasets = [torch.utils.data.Subset(mnist_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
+        mnist_individual_test_valid=[torch.utils.data.Subset(mnist_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
+        for i in range(len(mnist_individual_datasets)):
+            sub={}
+            sub["train"]=list(mnist_individual_datasets[i%(int)(len(mnist_train_dataset)/training_set_size)])
+            # sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size, test_set_size])
+            sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i%(int)((len(mnist_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)
+    else:
+        train_index_of_label=split_by_label(dataset=mnist_train_dataset)
+        validation_test_index_of_label=split_by_label(dataset=mnist_test_dataset)
+        mnist_individual_datasets = []
+        mnist_individual_test_valid=[]
+        for i in range(num_individuals):
+            #no necessary the same size of dataset
+            nums_of_type=random.randint(5,10)
+            if not(i):
+                nums_of_type=10
+            type=random.sample(range(0, 10), nums_of_type)
+            index_1=[ random.choices(train_index_of_label[i],k=(int)(training_set_size/nums_of_type)) for i in type]
+            #flatten
+            index_1=[item for ind in index_1 for item in ind]
+            mnist_individual_datasets.append(torch.utils.data.Subset(mnist_train_dataset,index_1))
+            index_2=[ random.choices(validation_test_index_of_label[i],k=(int)((validation_set_size+test_set_size)/nums_of_type)) for i in type]
+            #flatten
+            index_2=[item for ind in index_2 for item in ind]
+            mnist_individual_test_valid.append(torch.utils.data.Subset(mnist_test_dataset,index_2))
+        for i in range(len(mnist_individual_datasets)):
+            sub={}
+            sub["train"]=mnist_individual_datasets[i]
+            sub["validation"],sub['test']=random_split(mnist_individual_test_valid[i], [validation_set_size,len(mnist_individual_test_valid[i])-validation_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)    
     return dataset
         
 def change_labels(dataset, percentage=0.1):
@@ -127,24 +184,78 @@ def change_labels(dataset, percentage=0.1):
         new_data[idx] =(new_data[idx][0],new_label)  # Assign the new label    
     return new_data
 
-def load_CIFAR10(num_individuals = 30,training_set_size = 20000,validation_set_size=2000,test_set_size=2000):
+def load_CIFAR10(num_individuals = 30,training_set_size = 20000,validation_set_size=2000,test_set_size=2000,non_IID=False):
     transform = transforms.Compose([transforms.ToTensor(),  transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
     # Load cifar10 dataset
     cifar10_train_dataset = CIFAR10(root='./data', train=True, download=True, transform=transform)
     cifar10_test_dataset = CIFAR10(root='./data', train=False, transform=transform, download=True)
     total=validation_set_size+test_set_size
-    # Split datasets for each individual
-    cifar10_individual_datasets = [torch.utils.data.Subset(cifar10_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
-    cifar10_individual_test_valid=[torch.utils.data.Subset(cifar10_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
     dataset=[]
-    for i in range(len(cifar10_individual_datasets)):
-        sub={}
-        sub["train"]=list(cifar10_individual_datasets[i%(int)(len(cifar10_train_dataset)/training_set_size)])
-        # sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i], [validation_set_size, test_set_size])
-        sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i%(int)((len(cifar10_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
-        sub["validation"]=list(sub["validation"])
-        sub['test']=list(sub['test'])
-        dataset.append(sub)
+    if non_IID==0:
+        # Split datasets for each individual
+        cifar10_individual_datasets = [torch.utils.data.Subset(cifar10_train_dataset, range(i * training_set_size, (i + 1) * training_set_size)) for i in range(num_individuals)]
+        cifar10_individual_test_valid=[torch.utils.data.Subset(cifar10_test_dataset, range(i * total, (i + 1) * total)) for i in range(num_individuals)]
+        for i in range(len(cifar10_individual_datasets)):
+            sub={}
+            sub["train"]=list(cifar10_individual_datasets[i%(int)(len(cifar10_train_dataset)/training_set_size)])
+            # sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i], [validation_set_size, test_set_size])
+            sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i%(int)((len(cifar10_test_dataset)/(validation_set_size+test_set_size)))], [validation_set_size, test_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)
+    # else:
+    #     train_index_of_label=split_by_label(dataset=cifar10_train_dataset)
+    #     validation_test_index_of_label=split_by_label(dataset=cifar10_test_dataset)
+    #     cifar10_individual_datasets = []
+    #     cifar10_individual_test_valid=[]
+    #     for i in range(num_individuals):
+    #         #no necessary the same size of dataset
+    #         num_of_more=random.randint(1,10)
+    #         percent_of_more=0.1
+    #         if i:
+    #             percent_of_more=random.randint(1,5)/10                
+    #         index_1=[ random.choices(train_index_of_label[i],k=max((int)(training_set_size*(i==num_of_more)*percent_of_more),(int)(training_set_size*((1-percent_of_more)/9)))) for i in range(10)]
+    #         #flatten
+    #         index_1=[item for ind in index_1 for item in ind]
+    #         cifar10_individual_datasets.append(torch.utils.data.Subset(cifar10_train_dataset,index_1))
+    #         index_2=[ random.choices(validation_test_index_of_label[i],k=max((int)(total*(i==num_of_more)*percent_of_more),(int)(total*((1-percent_of_more)/9)))) for i in range(10)]
+    #         #flatten
+    #         index_2=[item for ind in index_2 for item in ind]
+    #         cifar10_individual_test_valid.append(torch.utils.data.Subset(cifar10_test_dataset,index_2))
+    #     for i in range(len(cifar10_individual_datasets)):
+    #         sub={}
+    #         sub["train"]=list(cifar10_individual_datasets[i])
+    #         sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i], [validation_set_size, len(cifar10_individual_test_valid[i])-validation_set_size])
+    #         sub["validation"]=list(sub["validation"])
+    #         sub['test']=list(sub['test'])
+    #         dataset.append(sub)
+    else:
+        train_index_of_label=split_by_label(dataset=cifar10_train_dataset)
+        validation_test_index_of_label=split_by_label(dataset=cifar10_test_dataset)
+        cifar10_individual_datasets = []
+        cifar10_individual_test_valid=[]
+        for i in range(num_individuals):
+            #no necessary the same size of dataset
+            nums_of_type=random.randint(5,10)
+            if not(i):
+                nums_of_type=10
+            type=random.sample(range(0, 10), nums_of_type)
+            index_1=[ random.choices(train_index_of_label[i],k=(int)(training_set_size/nums_of_type)) for i in type]
+            #flatten
+            index_1=[item for ind in index_1 for item in ind]
+            cifar10_individual_datasets.append(torch.utils.data.Subset(cifar10_train_dataset,index_1))
+            index_2=[ random.choices(validation_test_index_of_label[i],k=(int)((validation_set_size+test_set_size)/nums_of_type)) for i in type]
+            #flatten
+            index_2=[item for ind in index_2 for item in ind]
+            cifar10_individual_test_valid.append(torch.utils.data.Subset(cifar10_test_dataset,index_2))
+        for i in range(len(cifar10_individual_datasets)):
+            sub={}
+            sub["train"]=list(cifar10_individual_datasets[i])
+            sub["validation"],sub['test']=random_split(cifar10_individual_test_valid[i], [validation_set_size, len(cifar10_individual_test_valid[i])-validation_set_size])
+            sub["validation"]=list(sub["validation"])
+            sub['test']=list(sub['test'])
+            dataset.append(sub)    
+    print("load_finish")    
     return dataset
 
 
@@ -176,7 +287,17 @@ def test_accuracy(old_dataset,new_dataset):
             num +=1
     return (num/len(new_dataset))
 
+def get_num_types(data):
+    l={}
+    for image,label in data['train']:
+        l[label]=1
+    return len(l)
 
+def get_max_label_percent(data):
+    count={i:0 for i in range(10)}
+    for image,label in data['train']:
+        count[label] += 1
+    return max(v for k,v in count.items())/len(data['train'])
 
 ## Define the SimpleNN model 
 
@@ -198,9 +319,7 @@ class SimpleNN_MNIST(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         return x
-
-    # def train_nn(self,data,learning_rate=0.05, num_of_batch=64):
-    def train_nn(self,data_loader,epochs,learning_rate=0.05):
+    def train_nn(self,data_loader,epochs,learning_rate=0.005):
         self.train()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         criterion = nn.CrossEntropyLoss()
@@ -277,7 +396,7 @@ class CNN_MNIST(nn.Module):
         x = self.fc2_cnn(x)
         return x
 
-    def train_nn(self, data_loader, epochs, learning_rate=0.05):
+    def train_nn(self, data_loader, epochs, learning_rate=0.005):
         self.train()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         criterion = nn.CrossEntropyLoss()
@@ -318,11 +437,74 @@ class CNN_MNIST(nn.Module):
         avg_loss = sum(losses) / len(losses)
 
         return avg_accuracy, avg_loss
-    
-#CIFAR10
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-re_device=  torch.device( "cpu")
+#Alexnet
+class AlexNet_CIFAR10(nn.Module):
+    def __init__(self):
+        super(AlexNet_CIFAR10, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 192, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(192, 384, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(384, 256, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(256 * 4 * 4, 4096)
+        self.fc2 = nn.Linear(4096, 4096)
+        self.fc3 = nn.Linear(4096, 10)
+
+    def forward(self, x):
+        x = self.pool(torch.relu(self.conv1(x)))
+        x = self.pool(torch.relu(self.conv2(x)))
+        x = torch.relu(self.conv3(x))
+        x = torch.relu(self.conv4(x))
+        x = self.pool(torch.relu(self.conv5(x)))
+        x = x.view(-1, 256 * 4 * 4)
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+    def train_nn(self, data_loader, epochs, learning_rate=0.001):
+        self.cuda()
+        self.train()
+        optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        criterion = nn.CrossEntropyLoss()
+        for epoch in range(epochs):
+            if epoch > 9:
+                for g in optimizer.param_groups:
+                    g['lr'] = learning_rate / 10
+
+            for i, data in enumerate(data_loader, 0):
+                inputs, labels = data[0].cuda(), data[1].cuda()
+                optimizer.zero_grad()
+                outputs = self(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+
+        return self.state_dict()
+
+    def test_nn(self, data_loader):
+        self.cuda()
+        self.eval()
+        accuracies = []
+        losses = []
+        criterion = nn.CrossEntropyLoss()
+
+        with torch.no_grad():
+            for data in data_loader:
+                images, labels = data[0].cuda(), data[1].cuda()
+                outputs = self(images)
+                loss = criterion(outputs, labels)
+
+                _, predicted = torch.max(outputs.data, 1)
+                accuracies.append((predicted == labels).sum().item() / labels.size(0))
+                losses.append(loss.item())
+
+        avg_accuracy = sum(accuracies) / len(accuracies)
+        avg_loss = sum(losses) / len(losses)
+        return avg_accuracy, avg_loss    
+#CIFAR10
 class CNN_CIFAR10(nn.Module):
     def __init__(self):
         super(CNN_CIFAR10, self).__init__()
@@ -341,7 +523,7 @@ class CNN_CIFAR10(nn.Module):
         x = self.fc2(x)
         return x
     def train_nn(self, data_loader, epochs, learning_rate=0.001):
-        self.to(device)
+        self.cuda()
         self.train()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         criterion = nn.CrossEntropyLoss()
@@ -353,13 +535,12 @@ class CNN_CIFAR10(nn.Module):
             # accuracies = []
             # losses = []
             for i, data in enumerate(data_loader, 0):
-                inputs, labels = data[0].to(device), data[1].to(device)
+                inputs, labels = data[0].cuda(), data[1].cuda()
                 optimizer.zero_grad()
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
                 loss.backward()
-                optimizer.step()
-        self.to(re_device)        
+                optimizer.step()     
                 
         
                # _, predicted = torch.max(outputs.data, 1)
@@ -377,7 +558,7 @@ class CNN_CIFAR10(nn.Module):
     def test_nn(self, data):
         accuracies = []
         losses = []
-        self.to(device)
+        self.cuda()
         self.eval()
         # correct = 0
         # total = 0
@@ -385,8 +566,8 @@ class CNN_CIFAR10(nn.Module):
 
         with torch.no_grad():
             for da in data:
-                images, labels = da[0].to(device), da[1].to(device)
-                outputs = self(images.to(device))
+                images, labels = da[0].cuda(), da[1].cuda()
+                outputs = self(images.cuda())
                 loss = criterion(outputs, labels)
 
                 _, predicted = torch.max(outputs.data, 1)
@@ -398,7 +579,6 @@ class CNN_CIFAR10(nn.Module):
 
         avg_accuracy = sum(accuracies) / len(accuracies)
         avg_loss = sum(losses) / len(losses)
-        self.to(re_device)
         return avg_accuracy, avg_loss
 
 
@@ -460,14 +640,16 @@ class Request_Set:
             sum +=self.num_per_type[i]
         return sum
 
-    def reset_for_ALG(self,bid_group_num=0):
+    def reset_for_ALG(self,bid_group_num=0): 
         for worker in self.workers:
+            if(len(worker.bid_test)<bid_group_num+1):
+                worker.generate_bid()
             worker.bid=worker.bid_test[bid_group_num]
         for requester in self.requesters:
             requester.restart()            
 ###
 #integrate the selction of participants in global model for convenience since the global can operate the local        
-    def run(self,mode="get_rep",size_of_selection=10):
+    def run(self,mode="get_rep",size_of_selection=10,mode_flag=""):
         #m requester, n workers, l groups
         m=len(self.requesters)
         n=sum(self.num_per_type)
@@ -500,7 +682,7 @@ class Request_Set:
                     print(f"requester {requester}, worker:{sequence[i]},accuracy{self.workers[sequence[i]].accuracy},type:{self.workers[sequence[i]].type_ID},rep:{self.rep[sequence[i]]}")
                     sum_pay += price
                     each_pay[requester]+=price 
-                    sum_rep+=self.rep[sequence[i]]
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
                     len_rep+=1
                     num_sel+=1
                 elif num_sel<m:
@@ -533,7 +715,7 @@ class Request_Set:
                     each_pay[requester]+=price
                     sum_pay += price 
                     num_sel +=1
-                    sum_rep+=self.rep[sequence[i]]
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
                     len_rep+=1
                 elif num_sel<m:
                     continue
@@ -557,13 +739,15 @@ class Request_Set:
                     model.addConstr(X[i,j] >= 0)
             #heterogenity(l constraints)        
             for num in range(l):
+                select_time=1
                 het=[[0 for j in range(m)]for i in range(n)]
                 for i in range(n):
                     for j in range(m):
                         if quality[i]["type_ID"]==num:
+                            select_time=self.workers[quality[i]['ID']].type_select_time
                             het[i][j]=1
                 for j in range(m):
-                    model.addConstr(gp.quicksum(het[i][j]*X[i,j] for i in range(n)) <= 1)
+                    model.addConstr(gp.quicksum(het[i][j]*X[i,j] for i in range(n)) <= select_time)
             #one requester(n constraints)
             for i in range(n):
                 model.addConstr(gp.quicksum(X[i,j] for j in range(m)) <=1)
@@ -590,9 +774,11 @@ class Request_Set:
                     if X[i,j].X==1:
                         to_be_mod[j].append(i)
             re_allocate=[{'ID':i,'allo':to_be_mod[i] }for i in range(m)]  
-            re_allocate=sorted(re_allocate,key=lambda x:len(x['allo'])) 
+            re_allocate=sorted(re_allocate,key=lambda x:len(x['allo']))
+            l=[len(x['allo']) for x in re_allocate]
+            total=sum(l)
             for i in range(m):
-                if len(re_allocate[i]['allo'])==0:
+                if len(re_allocate[i]['allo'])==0 and total>=m:
                     re_allocate[i]['allo'].append(re_allocate[m-1]['allo'][-1])
                     re_allocate[m-1]['allo'].pop()
                 else:
@@ -600,23 +786,23 @@ class Request_Set:
             for k in range(m):
                 y=re_allocate[k]['ID']
                 for x in re_allocate[k]['allo']:
-                    sum_rep += self.rep[quality[x]['ID']]
+                    sum_rep += self.rep[quality[x]['ID']]/max(self.rep)
                     len_rep += 1
                     pay=quality[x]['rep']*min(quality[x]['q'],self.budget/model.ObjVal)
                     sum_pay += pay
                     self.requesters[y].participants[quality[x]['ID']]=1
                     self.requesters[y].eval_models[quality[x]['ID']].interaction=1
-                    print(f"requester:{y}, worker:{quality[x]['ID']},accuracy;{self.workers[quality[x]['ID']].accuracy},type:{quality[x]['type_ID']} rep:{quality[x]['rep']}")      
+                    print(f"requester:{y}, worker:{quality[x]['ID']},accuracy:{self.workers[quality[x]['ID']].accuracy},type:{quality[x]['type_ID']} rep:{quality[x]['rep']}")      
             # for i in range(n):
             #     for j in range(m):
             #         if X[i,j].X==1:
-            #             sum_rep += self.rep[quality[i]['ID']]
+            #             sum_rep += self.rep[quality[i]['ID']]/max(self.rep)
             #             len_rep += 1
             #             pay=quality[i]['rep']*min(quality[i]['q'],self.budget/model.ObjVal)
             #             sum_pay += pay
             #             self.requesters[j].participants[quality[i]['ID']]=1
             #             self.requesters[j].eval_models[quality[i]['ID']].interaction=1
-            #             print(f"requester:{j}, worker:{quality[i]['ID']},accuracy;{self.workers[quality[i]['ID']].accuracy},type:{quality[i]['type_ID']} rep:{quality[i]['rep']}") 
+            #             print(f"requester:{j}, worker:{quality[i]['ID']},accuracy:{self.workers[quality[i]['ID']].accuracy},type:{quality[i]['type_ID']} rep:{quality[i]['rep']}") 
             print(f"sum_pay :{sum_pay}")   
                 
         if mode=='BMW_FL_s':
@@ -693,13 +879,15 @@ class Request_Set:
                                     model.addConstr(X[i,j] >= 0)
                             #heterogenity(l constraints)        
                             for num in range(l):
+                                select_time=1
                                 het=[[0 for j in range(m)]for i in range(n)]
                                 for i in range(s_r):
                                     for j in range(m):
                                         if bid_sub[i]["type_ID"]==num:
+                                            select_time=self.workers[bid_sub[i]['ID']].type_select_time
                                             het[i][j]=1
                                 for j in range(m):
-                                    model.addConstr(gp.quicksum(het[i][j]*X[i,j] for i in range(s_r)) <= 1)
+                                    model.addConstr(gp.quicksum(het[i][j]*X[i,j] for i in range(s_r)) <=select_time)
                             #one requester(n constraints)
                             for i in range(s_r):
                                 model.addConstr(gp.quicksum(X[i,j] for j in range(m)) <=1)
@@ -726,7 +914,7 @@ class Request_Set:
             for i in range(payscheme['s_r']):
                 for j in range(m):
                     if payscheme['pay_flag'][i][j]==1:
-                        sum_rep += self.rep[payscheme['bid_set'][i]['ID']]
+                        sum_rep += self.rep[payscheme['bid_set'][i]['ID']]/max(self.rep)
                         len_rep+= 1
                         pay=payscheme['pay']
                         each_pay[j] += pay
@@ -752,14 +940,26 @@ class Request_Set:
             for i in range(n):
                 requester=random.randint(0,m-1)
                 price=random.randint(low,high)
-                if price>=self.workers[sequence[i]].bid and sum_pay+self.workers[sequence[i]].bid<self.budget  and not(self.workers[sequence[i]].type_ID in conf[requester]):
+                if price>=self.workers[sequence[i]].bid and sum_pay+self.workers[sequence[i]].bid<self.budget  \
+                    and not(self.workers[sequence[i]].type_ID in conf[requester]):
                     self.requesters[requester].participants[sequence[i]]=1
-                    conf[requester][self.workers[sequence[i]].type_ID]=self.workers[sequence[i]].type_ID
+                    conf[requester][self.workers[sequence[i]].type_ID]=1
+                    #conf[requester][self.workers[sequence[i]].type_ID]=self.workers[sequence[i]].type_ID
                     print(f"requester {requester}, worker:{sequence[i]},accuracy{self.workers[sequence[i]].accuracy},type:{self.workers[sequence[i]].type_ID},rep:{self.rep[sequence[i]]}")
                     sum_pay += price 
-                    sum_rep+=self.rep[sequence[i]]
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
                     len_rep+=1
                     num_sel+=1
+                elif price>=self.workers[sequence[i]].bid and self.workers[sequence[i]].type_ID in conf[requester] and\
+                    sum_pay+self.workers[sequence[i]].bid<self.budget and \
+                    conf[requester][self.workers[sequence[i]].type_ID]<self.workers[sequence[i]].type_select_time:
+                    self.requesters[requester].participants[sequence[i]]=1
+                    conf[requester][self.workers[sequence[i]].type_ID] += 1
+                    print(f"requester {requester}, worker:{sequence[i]},accuracy{self.workers[sequence[i]].accuracy},type:{self.workers[sequence[i]].type_ID},rep:{self.rep[sequence[i]]}")
+                    sum_pay += price 
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
+                    len_rep+=1
+                    num_sel+=1                    
                 elif num_sel<m:
                     continue
                 else:
@@ -781,15 +981,28 @@ class Request_Set:
                 requester=random.randint(0,m-1)
                 price=random.randint(low,high)
                 # print(price,self.workers[sequence[i]].bid)
-                if price>=self.workers[sequence[i]].bid  and each_pay[requester]+self.workers[sequence[i]].bid <self.requesters[requester].budget and not(self.workers[sequence[i]].type_ID in conf[requester]):
+                if price>=self.workers[sequence[i]].bid  and each_pay[requester]+self.workers[sequence[i]].bid <self.requesters[requester].budget \
+                    and not(self.workers[sequence[i]].type_ID in conf[requester]):
                     self.requesters[requester].participants[sequence[i]]=1
-                    conf[requester][self.workers[sequence[i]].type_ID]=self.workers[sequence[i]].type_ID
+                    # conf[requester][self.workers[sequence[i]].type_ID]=self.workers[sequence[i]].type_ID
+                    conf[requester][self.workers[sequence[i]].type_ID]=1
                     print(f"requester {requester}, worker:{sequence[i]},accuracy{self.workers[sequence[i]].accuracy},type:{self.workers[sequence[i]].type_ID},rep:{self.rep[sequence[i]]}")
                     each_pay[requester]+=price
                     sum_pay += price 
                     num_sel +=1
-                    sum_rep+=self.rep[sequence[i]]
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
                     len_rep+=1
+                elif price>=self.workers[sequence[i]].bid  and self.workers[sequence[i]].type_ID in conf[requester] and\
+                    each_pay[requester]+self.workers[sequence[i]].bid <self.requesters[requester].budget \
+                    and conf[requester][self.workers[sequence[i]].type_ID]<self.workers[sequence[i]].type_select_time:
+                    self.requesters[requester].participants[sequence[i]]=1
+                    conf[requester][self.workers[sequence[i]].type_ID] +=1
+                    print(f"requester {requester}, worker:{sequence[i]},accuracy{self.workers[sequence[i]].accuracy},type:{self.workers[sequence[i]].type_ID},rep:{self.rep[sequence[i]]}")
+                    each_pay[requester]+=price
+                    sum_pay += price 
+                    num_sel +=1
+                    sum_rep+=self.rep[sequence[i]]/max(self.rep)
+                    len_rep+=1                        
                 elif num_sel<m:
                     continue
                 else:
@@ -819,7 +1032,7 @@ class Request_Set:
             # for i in range(m):
             #     if participants[bid[i]['ID']]:
             #         requester=i
-            #         sum_rep+=self.rep[bid[i]['ID']]
+            #         sum_rep+=self.rep[bid[i]['ID']]/max(self.rep)
             #         len_rep+=1
             #         sum_pay += bid[i]['q']*q
             #         self.requesters[requester].participants[bid[i]['ID']]=1
@@ -827,14 +1040,23 @@ class Request_Set:
             for i in range(n):
                 requester=random.randint(0,m-1)
                 if participants[bid[i]['ID']] and not(bid[i]['type'] in conf[requester]):
-                    sum_rep+=self.rep[bid[i]['ID']]
+                    sum_rep+=self.rep[bid[i]['ID']]/max(self.rep)
                     len_rep+=1
                     self.requesters[requester].participants[bid[i]['ID']]=1
-                    conf[requester][bid[i]['type']]=bid[i]['type']
+                    # conf[requester][bid[i]['type']]=bid[i]['type']
+                    conf[requester][bid[i]['type']]=1
                     print(f"requester {requester}, worker:{bid[i]['ID']},accuracy{self.workers[bid[i]['ID']].accuracy},type:{self.workers[bid[i]['ID']].type_ID},rep:{self.rep[bid[i]['ID']]}")
                     sum_pay += bid[i]['rep']*q 
+                # elif participants[bid[i]['ID']] and bid[i]['type'] in conf[requester] and conf[requester][bid[i]['type']]<self.workers[bid[i]['ID']].type_select_time:
+                #     sum_rep+=self.rep[bid[i]['ID']]
+                #     len_rep+=1
+                #     self.requesters[requester].participants[bid[i]['ID']]=1
+                #     # conf[requester][bid[i]['type']]=bid[i]['type']
+                #     conf[requester][bid[i]['type']]=1
+                #     print(f"requester {requester}, worker:{bid[i]['ID']},accuracy{self.workers[bid[i]['ID']].accuracy},type:{self.workers[bid[i]['ID']].type_ID},rep:{self.rep[bid[i]['ID']]}")
+                #     sum_pay += bid[i]['rep']*q    
                 #if confilct break
-                elif participants[i]:
+                elif participants[bid[i]['ID']]:
                     break
             print(f"sum_pay :{sum_pay}")   
            
@@ -844,15 +1066,15 @@ class Request_Set:
             each_pay=[0 for i in range(m)]
             conf=[{} for i in range(m)]
             participants=[0 for i in range(n)]
-            self.rep=[rep/max(self.rep) for rep in self.rep]
+            # self.rep=[rep/max(self.rep) for rep in self.rep]
             bid=[{'ID':i,"type":self.workers[i].type_ID,'bid':self.workers[i].bid,'q':self.workers[i].bid/self.rep[i],'rep':self.rep[i]} for i in range(n)]
             bid=sorted(bid,key=lambda x:x['q'])
             rep_sum=0
             q=0
-            min_budget=min([requester.budget for requester in self.requesters])
+            
             for i in range(n-1):
                 rep_sum +=bid[i]['bid']/bid[i]['q']
-                if rep_sum*bid[i+1]['q']<=self.budget and bid[0]['rep']*bid[i+1]['q']<=min_budget:
+                if rep_sum*bid[i+1]['q']<=self.budget :
                     participants[bid[i]['ID']]=1
                 else:
                     q=bid[i]['q']
@@ -863,13 +1085,22 @@ class Request_Set:
             for i in range(n):
                 requester=random.randint(0,m-1)
                 if participants[bid[i]['ID']] and not(bid[i]['type'] in conf[requester]) and each_pay[requester]+bid[i]['rep']*q<=self.requesters[requester].budget:
-                    sum_rep+=self.rep[bid[i]['ID']]
+                    sum_rep+=self.rep[bid[i]['ID']]/max(self.rep)
                     len_rep+=1
                     self.requesters[requester].participants[bid[i]['ID']]=1
-                    conf[requester][bid[i]['type']]=bid[i]['type']
+                    conf[requester][bid[i]['type']]=1
                     print(f"requester {requester}, worker:{bid[i]['ID']},accuracy{self.workers[bid[i]['ID']].accuracy},type:{self.workers[bid[i]['ID']].type_ID},rep:{self.rep[bid[i]['ID']]}")
                     sum_pay += bid[i]['rep']*q
-                    each_pay[requester] +=   bid[i]['rep']*q 
+                    each_pay[requester] +=   bid[i]['rep']*q
+                # elif participants[bid[i]['ID']] and bid[i]['type'] in conf[requester] and  conf[requester][bid[i]['type']]<self.workers[bid[i]['ID']].type_select_time\
+                #     and each_pay[requester]+bid[i]['rep']*q<=self.requesters[requester].budget:
+                #     sum_rep+=self.rep[bid[i]['ID']]/max(self.rep)
+                #     len_rep+=1
+                #     self.requesters[requester].participants[bid[i]['ID']]=1
+                #     conf[requester][bid[i]['type']] += 1
+                #     print(f"requester {requester}, worker:{bid[i]['ID']},accuracy{self.workers[bid[i]['ID']].accuracy},type:{self.workers[bid[i]['ID']].type_ID},rep:{self.rep[bid[i]['ID']]}")
+                #     sum_pay += bid[i]['rep']*q
+                #     each_pay[requester] +=   bid[i]['rep']*q
                 #conflict or not enough budget break  
                 elif participants[bid[i]['ID']] and len_rep:
                     break
@@ -885,11 +1116,20 @@ class Request_Set:
             for worker in self.workers:
                 worker.generate_bid()
             print(self.requesters[0].rounds)
+            sorted_rep=[{"ID":i,"rep":self.rep[i]} for i in range(len(self.rep))]
             for requester in self.requesters:
+                #random selection of workers  
+                # selected_number=np.random.choice([i for i in range(n)],size=size_of_selection,replace=False)  
+                sorted_rep=sorted(sorted_rep,key=lambda x:x['rep'],reverse=True)
+                selected_number=0
+                for i in range(1,size_of_selection+1):
+                    if not selected_number:
+                        selected_number=list(np.random.choice([x['ID'] for x in sorted_rep[:(int)(n/size_of_selection*i)+1]],size=1,replace=False)  )
+                    else:
+                        selected_number.extend(np.random.choice([x['ID'] for x in sorted_rep[(int)(n/size_of_selection*(i-1)):(int)(n/size_of_selection*i)+1]],size=1,replace=False)) 
+                print(f"select_num{selected_number}")
                 requester.cal_rep(set_req=self)
                 requester.init()
-                #random selection of workers  
-                selected_number=np.random.choice([i for i in range(n)],size=size_of_selection,replace=False)  
                 for x in selected_number:          
                     requester.participants[x]=1
                     #record the interaction(Interact means one direction?)
@@ -901,15 +1141,20 @@ class Request_Set:
                 for req in self.requesters:
                     self.rep[i] += req.eval_models[i].comprehensive_reputation
                 self.rep[i] /= m
+            if max(self.rep)>min(self.rep):
+                # self.reo=[x/max(self.rep) for x in self.rep]
+                self.rep=[x/(max(self.rep)-min(self.rep))*100 for x in self.rep]
             output=[{"ID":i,"rep":self.rep[i],"accuracy":self.workers[i].accuracy,"success":np.average(self.workers[i].success),"fail":np.average(self.workers[i].fail) }for i in range(n)]
             output=sorted(output,key=lambda x:x['rep'])
-            if self.requesters[0].rounds and self.requesters[0].rounds%10==0:
-                for i in range(n):
-                    print(output[i],end='  ')
-                    if (i+1)%3==0:
-                        print("")
-                print("")
-                
+            # if self.requesters[0].rounds and self.requesters[0].rounds%15==0:
+            #     for i in range(n):
+            #         print(output[i],end='  ')
+            #         if (i+1)%3==0:
+            #             print("")
+            #     print("")
+            import pandas as pd    
+            output= pd.DataFrame(output)
+            output.to_csv(f"rep_{mode_flag}.csv")
         else:
             self.accuracy[mode].append(0)
             for i in range(2):
@@ -920,7 +1165,7 @@ class Request_Set:
                         self.accuracy[mode][-1] += ans[0]        
                         print(f"requester:{requester.ID},result of global_accuracy & loss:{ans}")
             self.accuracy[mode][-1] /=m
-            self.rep_per_round[mode].append(sum_rep/max(self.rep))  
+            self.rep_per_round[mode].append(sum_rep)  
                        
                             
         
@@ -943,7 +1188,8 @@ class Requester:
         if mode=="MNIST" or mode=="FASHIONMNIST":
             self.global_model=SimpleNN_MNIST().cuda()  
         else:
-            self.global_model=CNN_CIFAR10() 
+            self.global_model=CNN_CIFAR10()
+            # self.global_model=AlexNet_CIFAR10() 
         self.init_param=flatten_parameters(self.global_model)
         self.params=[flatten_parameters(self.global_model)]
         self.local_updates={}
@@ -1008,8 +1254,9 @@ class Requester:
         flag=False
         for worker in self.workers:
             ##(step 5 download global model step 6 train local model)
-            worker.download(self)
-            worker.train(self)
+            if self.participants[worker.ID]==1 or mode=='get_rep':
+                worker.download(self)
+                worker.train(self)
         
         for worker in self.workers:
         ##(step 5 download global model step 6 train local model)
@@ -1209,7 +1456,8 @@ class Requester:
 class Worker:
     #init
     def __init__(self,accuracy,data,ID,type_ID,num_requesters,base_score=1,epochs=1,learning_rate=0.005,\
-        range_of_bid={"low":4,"high":6},batch_size=100,mode="MNIST"):
+        range_of_bid={"low":4,"high":6},batch_size=100,mode="MNIST",type_select_time=1):
+        self.type_select_time=type_select_time
         self.base_score=base_score
         self.epochs=epochs
         self.learning_rate=learning_rate
@@ -1222,11 +1470,14 @@ class Worker:
         else:
             for i in range(num_requesters):
                 self.models.append(CNN_CIFAR10())
+                # self.models.append(AlexNet_CIFAR10())
         self.mode=mode
         self.accuracy=accuracy
         self.batch_size=batch_size
         self.train_test_acu=change_labels(data['train'],percentage=1-accuracy)
         self.train_set=DataLoader(dataset=self.train_test_acu,shuffle=True,batch_size=self.batch_size)
+        if self.accuracy==1:
+            self.accuracy=f" is 1.non_iid labels num {get_num_types(data=data)},non_iid percent {get_max_label_percent(data)}"
         self.ID=ID
         self.type_ID=type_ID
         self.range_of_bid=range_of_bid
@@ -1249,6 +1500,7 @@ class Worker:
         else:
             for i in range(self.num_requesters):
                 self.models.append(CNN_CIFAR10())
+                # self.models.append(AlexNet_CIFAR10())
         
     def rounds_stay(self,requester):
         if len(self.updates[requester.ID]):
